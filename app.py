@@ -10,6 +10,7 @@ from imblearn.over_sampling import SMOTE
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from xgboost import XGBClassifier, XGBRegressor
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+import pydeck as pdk
 
 # Set Streamlit page config
 st.set_page_config(page_title="Ride Prediction App", layout="wide")
@@ -47,11 +48,11 @@ price_model = models["price_rf"]
 demand_model = models["demand_xgb"]
 
 st.sidebar.title("Navigation")
-page = st.sidebar.radio("Select Page", ["Surge & Price Prediction", "Data Visualization"])
+page = st.sidebar.radio("Select Page", ["Surge & Price Prediction", "Data Visualization", "Model Accuracy & Map"])
 
 if page == "Surge & Price Prediction":
     st.title("🚖 Surge Prediction & Ride Price Estimator")
-    
+
     fare_amount = st.number_input("Fare Amount", min_value=0.0)
     trip_distance = st.number_input("Trip Distance (miles)", min_value=0.0)
     hour = st.slider("Hour of the day", 0, 23, 12)
@@ -121,3 +122,44 @@ if page == "Data Visualization":
     with col2:
         avg_fare = df["fare_amount"].mean()
         st.metric(label="Average Fare Amount ($)", value=f"{avg_fare:.2f}")
+
+if page == "Model Accuracy & Map":
+    st.title("📍 Interactive Map & Model Accuracy Checker")
+
+    st.subheader("Model Accuracy")
+    features = df[["fare_amount", "trip_distance", "hour", "day", "month"]]
+    labels = (df["fare_amount"] > df["fare_amount"].median()).astype(int)
+    X_train, X_test, y_train, y_test = train_test_split(features, labels, test_size=0.3, random_state=42)
+    X_train_scaled = scaler.transform(X_train)
+    y_pred = rf_model.predict(X_train_scaled)
+
+    acc = accuracy_score(y_train, y_pred)
+    st.metric("Training Accuracy", f"{acc:.2f}")
+    st.text("Classification Report:")
+    st.text(classification_report(y_train, y_pred))
+
+    st.subheader("Pickup Locations Map")
+    if "pickup_longitude" in df.columns and "pickup_latitude" in df.columns:
+        map_df = df[["pickup_longitude", "pickup_latitude"]].dropna().sample(n=1000)
+        st.pydeck_chart(pdk.Deck(
+            initial_view_state=pdk.ViewState(
+                latitude=map_df["pickup_latitude"].mean(),
+                longitude=map_df["pickup_longitude"].mean(),
+                zoom=10,
+                pitch=50,
+            ),
+            layers=[
+                pdk.Layer(
+                    "HexagonLayer",
+                    data=map_df,
+                    get_position='[pickup_longitude, pickup_latitude]',
+                    radius=100,
+                    elevation_scale=4,
+                    elevation_range=[0, 1000],
+                    pickable=True,
+                    extruded=True,
+                )
+            ],
+        ))
+    else:
+        st.warning("Pickup location columns not available in dataset.")
