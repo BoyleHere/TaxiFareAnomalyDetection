@@ -163,3 +163,13 @@ if page == "Model Accuracy & Map":
         ))
     else:
         st.warning("Pickup location columns not available in dataset.")
+
+    st.subheader("Anomaly Detection (Z-Score Method)")
+    numerical_cols = ["fare_amount", "trip_distance", "trip_duration"]
+    z_scores = np.abs((df[numerical_cols] - df[numerical_cols].mean()) / df[numerical_cols].std())
+    threshold = 3
+    anomalies = (z_scores > threshold).any(axis=1)
+    anomaly_count = anomalies.sum()
+    st.write(f"Number of detected anomalies (z-score > {threshold}): {anomaly_count}")
+    if anomaly_count > 0:
+        st.dataframe(df[anomalies].head(10))
